@@ -1,4 +1,7 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
+using System.Collections;
 using TMPro;
 
 public class BallControl : MonoBehaviour
@@ -6,18 +9,25 @@ public class BallControl : MonoBehaviour
     private Rigidbody2D rb2d;
     private blocks[] allBlocks;
 
-    [Header("Velocidade e Força da Bola")]
-    [Tooltip("Força horizontal inicial aplicada na bola")]
-    public float forceX = 10.0f;               
+    [Header("Velocidade e Controle da Bola")]
+    [Tooltip("Velocidade fixa e constante da bola (padrão 8.0f para movimento suave e controlado)")]
+    public float ballSpeed = 8.0f;             
 
-    [Tooltip("Força vertical inicial aplicada na bola (valor negativo para ir para baixo)")]
-    public float forceY = -8.0f;              
+    [Header("Transição de Fases")]
+    public string[] levelSequence = new string[] { "level01", "level02", "level03", "SampleScene" };
+    public int countdownTime = 3;               // Contagem regressiva em segundos
+    private bool isLevelCompleting = false;
+    private int currentCountdown = 3;
 
-    [Tooltip("Velocidade máxima permitida para a bola")]
-    public float maxSpeed = 15.0f;            
+    [Header("Telas Especiais")]
+    private bool isTutorialActive = false;      // Exibido no level01
+    private bool isVictoryActive = false;       // Exibido no SampleScene
+    private int consecutiveBlockHits = 0;       // Contador de acertos em blocos sem tocar na raquete
 
-    [Tooltip("Velocidade vertical mínima para impedir que a bola fique presa apenas na horizontal")]
-    public float minVerticalSpeed = 3.0f;     
+
+
+
+
     
     [Header("Vidas e Limite da Tela")]
     public int maxLives = 3;                    // Número inicial de vidas
@@ -32,9 +42,10 @@ public class BallControl : MonoBehaviour
 
 
     [Header("Pontuação")]
-    public int score = 0;                       // Placar acumulado
+    public static int score = 0;               // Placar acumulado total de todas as fases
     public TextMeshProUGUI scoreText;          // Referência opcional para texto da interface (UI)
     public int guiFontSize = 36;                // Tamanho da fonte para exibição do placar na tela
+
 
 
     [Header("Efeitos Sonoros")]
@@ -59,11 +70,8 @@ public class BallControl : MonoBehaviour
 
     void GoBall(){                      
         float rand = Random.Range(0, 2);
-        if(rand < 1){
-            rb2d.AddForce(new Vector2(forceX, forceY));
-        } else {
-            rb2d.AddForce(new Vector2(-forceX, forceY));
-        }
+        Vector2 dir = new Vector2(rand < 1 ? 0.7f : -0.7f, -1.0f).normalized;
+        rb2d.linearVelocity = dir * ballSpeed;
     }
 
     void Start()
@@ -79,9 +87,24 @@ public class BallControl : MonoBehaviour
         FindAllBlocksInScene();
         UpdateScoreUI();
         ResetBall();
-        Invoke("GoBall", respawnDelay);    // Chama a função GoBall após 1 segundo       
-    }
 
+        string currentScene = SceneManager.GetActiveScene().name;
+
+        // Se estiver no SampleScene -> ativa a tela de Vitória final
+        if (currentScene.Equals("SampleScene", System.StringComparison.OrdinalIgnoreCase))
+        {
+            isVictoryActive = true;
+        }
+        // Se estiver no level01 -> ativa a tela de Tutorial
+        else if (currentScene.Equals("level01", System.StringComparison.OrdinalIgnoreCase))
+        {
+            isTutorialActive = true;
+        }
+        else
+        {
+            Invoke("GoBall", respawnDelay);
+        }
+    }
 
     void PlaySound(AudioClip clip, float volume)
     {
@@ -96,15 +119,10 @@ public class BallControl : MonoBehaviour
         allBlocks = Object.FindObjectsByType<blocks>(FindObjectsInactive.Include);
     }
 
-
     void ResetAllBlocks()
     {
-        if (allBlocks == null || allBlocks.Length == 0)
-        {
-            FindAllBlocksInScene();
-        }
-
-        foreach (blocks block in allBlocks)
+        blocks[] sceneBlocks = Object.FindObjectsByType<blocks>(FindObjectsInactive.Include);
+        foreach (blocks block in sceneBlocks)
         {
             if (block != null)
             {
@@ -114,20 +132,25 @@ public class BallControl : MonoBehaviour
     }
 
     void OnCollisionEnter2D (Collision2D coll) {
-        // Colisão com a raquete do jogador
+        // Colisão com a raquete do jogador (calcula a nova direção com velocidade constante ballSpeed)
         if(coll.collider.CompareTag("Player")){
-            Vector2 vel;
-            vel.x = rb2d.linearVelocity.x;
-            vel.y = (rb2d.linearVelocity.y / 2) + (coll.collider.attachedRigidbody.linearVelocity.y / 3);
-            rb2d.linearVelocity = vel;
+            consecutiveBlockHits = 0; // Reseta o combo ao tocar na raquete
+            float hitFactor = (transform.position.x - coll.transform.position.x) / coll.collider.bounds.size.x;
+            Vector2 dir = new Vector2(hitFactor * 1.2f, 1f).normalized;
+            rb2d.linearVelocity = dir * ballSpeed;
         }
-        // Colisão com os blocos ("block")
+        // Colisão com os blocos ("Block")
         else if (coll.gameObject.CompareTag("Block")) {
-            // Tenta obter os pontos do bloco atingido
-            blocks blockComponent = coll.gameObject.GetComponent<blocks>();
-            int pointsEarned = (blockComponent != null) ? blockComponent.points : 1;
+            consecutiveBlockHits++; // Incrementa os acertos consecutivos em blocos
 
-            AddScore(pointsEarned);
+            // Regra de Pontuação: 1 ponto no 1º bloco após a raquete; 2 pontos para blocos atingidos em sequência
+            int comboMultiplier = (consecutiveBlockHits > 1) ? 2 : 1;
+
+            blocks blockComponent = coll.gameObject.GetComponent<blocks>();
+            int basePoints = (blockComponent != null) ? blockComponent.points : 1;
+            int totalPoints = basePoints * comboMultiplier;
+
+            AddScore(totalPoints);
 
             // Toca som de destruição do bloco (volume baixo)
             PlaySound(blockExplodeSound, blockExplodeVolume);
@@ -138,7 +161,63 @@ public class BallControl : MonoBehaviour
             } else {
                 coll.gameObject.SetActive(false);
             }
+
+            // Verifica se todos os blocos foram destruídos para avançar de fase
+            CheckLevelCompleted();
         }
+    }
+
+    void CheckLevelCompleted()
+    {
+        if (isLevelCompleting) return;
+
+        // Busca apenas os blocos que estão ATIVOS no momento na cena
+        blocks[] activeBlocks = Object.FindObjectsByType<blocks>(FindObjectsInactive.Exclude);
+
+        // Se não resta nenhum bloco ativo na cena, inicia a transição de fase
+        if (activeBlocks == null || activeBlocks.Length == 0)
+        {
+            StartCoroutine(LevelCompletedRoutine());
+        }
+    }
+
+    IEnumerator LevelCompletedRoutine()
+    {
+        isLevelCompleting = true;
+        rb2d.linearVelocity = Vector2.zero;
+        transform.position = spawnPosition;
+
+        currentCountdown = countdownTime;
+        while (currentCountdown > 0)
+        {
+            yield return new WaitForSeconds(1.0f);
+            currentCountdown--;
+        }
+
+        string currentScene = SceneManager.GetActiveScene().name;
+        string nextScene = GetNextSceneName(currentScene);
+
+        SceneManager.LoadScene(nextScene);
+    }
+
+    string GetNextSceneName(string current)
+    {
+        for (int i = 0; i < levelSequence.Length; i++)
+        {
+            if (levelSequence[i].Equals(current, System.StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 < levelSequence.Length)
+                {
+                    return levelSequence[i + 1];
+                }
+                else
+                {
+                    return levelSequence[0]; // Retorna para a primeira fase ao concluir level03
+                }
+            }
+        }
+
+        return "level01";
     }
 
     public void AddScore(int points)
@@ -159,21 +238,124 @@ public class BallControl : MonoBehaviour
         }
     }
 
-    // Desenha o placar e vidas diretamente na tela com fonte maior e negrito
+    // Desenha o placar, tutorial do level01, tela de vitória em SampleScene e contagem de transição
     void OnGUI()
     {
         GUIStyle style = new GUIStyle();
         style.fontSize = guiFontSize;
         style.fontStyle = FontStyle.Bold;
         style.normal.textColor = Color.white;
+
+        // 1. Tela de Vitória em SampleScene (Cobre 100% da tela)
+        if (isVictoryActive)
+        {
+            Texture2D darkTex = new Texture2D(1, 1);
+            darkTex.SetPixel(0, 0, new Color(0.05f, 0.05f, 0.1f, 0.95f));
+            darkTex.Apply();
+
+            GUIStyle fullBg = new GUIStyle();
+            fullBg.normal.background = darkTex;
+            GUI.Box(new Rect(0, 0, Screen.width, Screen.height), "", fullBg);
+
+            GUIStyle victoryTitleStyle = new GUIStyle();
+            victoryTitleStyle.fontSize = guiFontSize + 16;
+            victoryTitleStyle.fontStyle = FontStyle.Bold;
+            victoryTitleStyle.alignment = TextAnchor.MiddleCenter;
+            victoryTitleStyle.normal.textColor = Color.yellow;
+
+            GUIStyle victorySubStyle = new GUIStyle();
+            victorySubStyle.fontSize = guiFontSize + 2;
+            victorySubStyle.alignment = TextAnchor.MiddleCenter;
+            victorySubStyle.normal.textColor = Color.white;
+
+            float vBoxWidth = 700f;
+            float vBoxHeight = 300f;
+            float vBoxX = (Screen.width - vBoxWidth) / 2f;
+            float vBoxY = (Screen.height - vBoxHeight) / 2f;
+
+            string titleText = "PARABÉNS! 🎉\nVOCÊ COMPLETOU O JOGO!";
+            string subText = "Pontuação Final: " + score + "\n\n[ Pressione R para Reiniciar ]";
+
+            GUI.Label(new Rect(vBoxX, vBoxY - 40, vBoxWidth, 100), titleText, victoryTitleStyle);
+            GUI.Label(new Rect(vBoxX, vBoxY + 80, vBoxWidth, 150), subText, victorySubStyle);
+            return;
+        }
+
+        // Placar padrão de pontos e vidas
         GUI.Label(new Rect(20, 20, 700, 60), "Pontos: " + score + "   |   Vidas: " + lives, style);
+
+        // 2. Tela de Tutorial no level01
+        if (isTutorialActive)
+        {
+            GUIStyle boxStyle = new GUIStyle();
+            Texture2D boxTex = new Texture2D(1, 1);
+            boxTex.SetPixel(0, 0, new Color(0f, 0f, 0f, 0.92f));
+            boxTex.Apply();
+            boxStyle.normal.background = boxTex;
+
+            GUIStyle tutTitleStyle = new GUIStyle();
+            tutTitleStyle.fontSize = guiFontSize + 14;
+            tutTitleStyle.fontStyle = FontStyle.Bold;
+            tutTitleStyle.alignment = TextAnchor.MiddleCenter;
+            tutTitleStyle.normal.textColor = Color.yellow;
+
+            GUIStyle tutBodyStyle = new GUIStyle();
+            tutBodyStyle.fontSize = guiFontSize - 2;
+            tutBodyStyle.fontStyle = FontStyle.Bold;
+            tutBodyStyle.wordWrap = true;
+            tutBodyStyle.alignment = TextAnchor.MiddleLeft;
+            tutBodyStyle.normal.textColor = Color.white;
+
+            float tWidth = 960f;
+            float tHeight = 520f;
+            float tX = (Screen.width - tWidth) / 2f;
+            float tY = (Screen.height - tHeight) / 2f;
+
+            GUI.Box(new Rect(tX, tY, tWidth, tHeight), "", boxStyle);
+
+            GUI.Label(new Rect(tX, tY + 25, tWidth, 60), "COMO JOGAR", tutTitleStyle);
+
+            string bodyText = " • Mova a raquete usando as teclas [A] e [D].\n\n" +
+                              " • Objetivo: Destrua todos os blocos com a bola.\n\n" +
+                              " • Não deixe a bola cair na parte inferior da tela!\n\n" +
+                              " • Pontuação: 1 ponto no 1º bloco após a raquete;\n" +
+                              "   2 pontos para cada bloco atingido em sequência!\n\n" +
+                              "                [ Pressione ESPAÇO para Começar ]";
+
+            GUI.Label(new Rect(tX + 45, tY + 95, tWidth - 90, tHeight - 110), bodyText, tutBodyStyle);
+        }
+
+        // 3. Display de Contagem Regressiva ao vencer uma fase
+        if (isLevelCompleting)
+        {
+            GUIStyle bannerStyle = new GUIStyle();
+            bannerStyle.fontSize = guiFontSize + 12;
+            bannerStyle.fontStyle = FontStyle.Bold;
+            bannerStyle.alignment = TextAnchor.MiddleCenter;
+            bannerStyle.normal.textColor = Color.yellow;
+
+            float boxWidth = 600f;
+            float boxHeight = 160f;
+            float boxX = (Screen.width - boxWidth) / 2f;
+            float boxY = (Screen.height - boxHeight) / 2f;
+
+            GUI.Box(new Rect(boxX, boxY, boxWidth, boxHeight), "");
+
+            string text = (currentCountdown > 0)
+                ? "FASE CONCLUÍDA!\nPróxima fase em: " + currentCountdown
+                : "CARREGANDO FASE...";
+
+            GUI.Label(new Rect(boxX, boxY, boxWidth, boxHeight), text, bannerStyle);
+        }
     }
 
     // Reinicializa a posição e velocidade da bola
     void ResetBall(){
+        consecutiveBlockHits = 0;
         rb2d.linearVelocity = Vector2.zero;
         transform.position = spawnPosition;
     }
+
 
     // Perde uma vida ao cair da tela
     void LoseLife()
@@ -210,12 +392,43 @@ public class BallControl : MonoBehaviour
         Invoke("GoBall", respawnDelay);
     }
 
-
     // Update is called once per frame
     void Update()
     {
+        // Se estiver na tela de Vitória (SampleScene), aguarda tecla R para reiniciar
+        if (isVictoryActive)
+        {
+            if (Keyboard.current != null && Keyboard.current[Key.R].wasPressedThisFrame)
+            {
+                score = 0;
+                lives = maxLives;
+                isVictoryActive = false;
+                SceneManager.LoadScene("level01");
+            }
+            return;
+        }
+
+        // Se estiver no Tutorial do level01, aguarda tecla ESPAÇO para iniciar
+        if (isTutorialActive)
+        {
+            if (Keyboard.current != null)
+            {
+                if (Keyboard.current[Key.Space].wasPressedThisFrame ||
+                    Keyboard.current[Key.Enter].wasPressedThisFrame ||
+                    Keyboard.current[Key.A].wasPressedThisFrame ||
+                    Keyboard.current[Key.D].wasPressedThisFrame)
+                {
+                    isTutorialActive = false;
+                    Invoke("GoBall", respawnDelay);
+                }
+            }
+            return;
+        }
+
         CheckBottomBoundary();
     }
+
+
 
     void CheckBottomBoundary()
     {
@@ -234,34 +447,31 @@ public class BallControl : MonoBehaviour
 
     void FixedUpdate()
     {
-        if (rb2d != null)
+        if (rb2d != null && rb2d.linearVelocity.magnitude > 0.5f)
         {
-            Vector2 vel = rb2d.linearVelocity;
+            Vector2 dir = rb2d.linearVelocity.normalized;
 
-            // Aplica a correção apenas se a bola já estiver em jogo (se movendo)
-            if (vel.magnitude > 0.5f)
+            // Corrige se o componente Y estiver plano demais (evita ficar presa no topo)
+            if (Mathf.Abs(dir.y) < 0.25f)
             {
-                // Impede que a velocidade vertical (Y) fique próxima de 0 (evita presas horizontais nas laterais/topo)
-                if (Mathf.Abs(vel.y) < minVerticalSpeed)
-                {
-                    // Se a velocidade Y for quase 0, direciona para baixo se estiver na metade superior da tela
-                    float dirY = (Mathf.Abs(vel.y) < 0.1f) 
-                        ? (transform.position.y > 0 ? -1f : 1f) 
-                        : Mathf.Sign(vel.y);
-
-                    vel.y = dirY * minVerticalSpeed;
-                    rb2d.linearVelocity = vel;
-                }
-
-                // Limita a velocidade máxima da bola
-                if (maxSpeed > 0 && rb2d.linearVelocity.magnitude > maxSpeed)
-                {
-                    rb2d.linearVelocity = rb2d.linearVelocity.normalized * maxSpeed;
-                }
+                dir.y = (transform.position.y > 0 ? -0.35f : 0.35f);
+                dir = dir.normalized;
             }
+
+            // Corrige se o componente X estiver plano demais (evita ficar presa nas paredes laterais)
+            if (Mathf.Abs(dir.x) < 0.25f)
+            {
+                dir.x = (transform.position.x > 0 ? -0.35f : 0.35f);
+                dir = dir.normalized;
+            }
+
+            // Mantém a velocidade 100% constante no valor de ballSpeed
+            rb2d.linearVelocity = dir * ballSpeed;
         }
     }
 }
+
+
 
 
 

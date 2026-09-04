@@ -1,17 +1,17 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class blockSpawner1 : MonoBehaviour
+public class blockSpawnerCentered : MonoBehaviour
 {
     [Header("Configurações do Grid")]
-    public int rows = 4;                           // Quantidade de linhas
+    public int rows = 5;                           // Quantidade de linhas
     public int columns = 8;                        // Quantidade de colunas
-    public Vector2 spacing = new Vector2(1.2f, 0.6f); // Distância entre cada bloco
-    public float topMargin = 1.5f;                 // Margem do topo da tela
+    public Vector2 spacing = new Vector2(1.2f, 0.5f); // Distância entre cada bloco (X e Y)
+    public float topMargin = 1.5f;                 // Distância em relação ao topo da câmera
 
     [Header("Referências")]
-    public GameObject blockPrefab;                 // Seu Prefab de bloco
-    public Sprite[] blockSprites;                  // Sprites de cores diferentes (um por linha)
+    public GameObject blockPrefab;                 // Prefab do bloco
+    public Sprite[] blockSprites;                  // Sprites para alternar por linha (opcional)
 
     void Start()
     {
@@ -22,14 +22,14 @@ public class blockSpawner1 : MonoBehaviour
     {
         if (blockPrefab == null)
         {
-            Debug.LogWarning("blockSpawner1: Nenhum blockPrefab foi atribuído no Inspector!");
+            Debug.LogWarning("blockSpawnerCentered: Nenhum blockPrefab foi atribuído no Inspector!");
             return;
         }
 
         Camera cam = Camera.main;
         if (cam == null)
         {
-            Debug.LogError("blockSpawner1: Câmera principal (Camera.main) não encontrada!");
+            Debug.LogError("blockSpawnerCentered: Câmera principal (Camera.main) não encontrada!");
             return;
         }
 
