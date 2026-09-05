@@ -186,6 +186,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: '::'
   ballSpeed: 4
+  levelSequence:
+  - level01
+  - level02
+  - level03
+  - SampleScene
+  countdownTime: 3
   maxLives: 3
   lives: 3
   autoCalculateBottomLimit: 1
@@ -193,7 +199,6 @@ MonoBehaviour:
   livesText: {fileID: 0}
   spawnPosition: {x: 0, y: -2.5}
   respawnDelay: 2
-  score: 0
   scoreText: {fileID: 0}
   guiFontSize: 36
   blockExplodeSound: {fileID: 8300000, guid: 4b83d6777ea2f154ebc8c15d9dd6023d, type: 3}
@@ -568,23 +573,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::blockSpawnerPattern
   pattern:
-  - '  111111 '
-  - ' 11111111 '
-  - 11 2112 11
-  - 11 2112 11
-  - 1111111111
-  - '1311111131 '
-  - '112    211 '
-  - '11 2222 11 '
-  - ' 11111111  '
-  - '  111111  '
+  - '  222222 '
+  - ' 22222222 '
+  - 22 3223 22
+  - 22 3223 22
+  - 2222222222
+  - '2122222212 '
+  - '223    322 '
+  - '22 3333 22 '
+  - ' 22222222  '
+  - '  222222  '
   spacing: {x: 0.55, y: 0.5}
   topMargin: 1.5
+  useDigitAsBlockLevel: 1
   blockPrefab: {fileID: 4000341075061539332, guid: b6868216e171d0d4c8e36c28e64fd67c, type: 3}
   blockSprites:
+  - {fileID: 7586607512568064798, guid: b783e67f69b35fc448fbb880140761c9, type: 3}
   - {fileID: 8516008594368888086, guid: a6c1293a515b8574e9acf99d525c1fa2, type: 3}
   - {fileID: -4230145986516692180, guid: 79a3224081f7ac341ae1b56088739dc7, type: 3}
-  - {fileID: 7586607512568064798, guid: b783e67f69b35fc448fbb880140761c9, type: 3}
 --- !u!1 &1634468197
 GameObject:
   m_ObjectHideFlags: 0

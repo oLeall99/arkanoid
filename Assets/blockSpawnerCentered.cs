@@ -9,6 +9,10 @@ public class blockSpawnerCentered : MonoBehaviour
     public Vector2 spacing = new Vector2(1.2f, 0.5f); // Distância entre cada bloco (X e Y)
     public float topMargin = 1.5f;                 // Distância em relação ao topo da câmera
 
+    [Header("Níveis dos Blocos (Opcional)")]
+    [Tooltip("Define a vida/resistência dos blocos por linha (ex: 6, 5, 4, 3, 2, 1). Se vazio, usa a vida padrão do prefab.")]
+    public int[] rowHealth;
+
     [Header("Referências")]
     public GameObject blockPrefab;                 // Prefab do bloco
     public Sprite[] blockSprites;                  // Sprites para alternar por linha (opcional)
@@ -65,6 +69,13 @@ public class blockSpawnerCentered : MonoBehaviour
                     {
                         sr.sprite = rowSprite;
                     }
+                }
+
+                blocks blockComp = newBlock.GetComponent<blocks>();
+                if (blockComp != null && rowHealth != null && rowHealth.Length > 0)
+                {
+                    int health = rowHealth[r % rowHealth.Length];
+                    blockComp.SetHealth(health);
                 }
 
                 spawnedBlocks.Add(newBlock);

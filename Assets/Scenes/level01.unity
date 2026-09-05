@@ -721,7 +721,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 07f58dea182cc134bb59e2e2d58dc39c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
-  ballSpeed: 4
+  ballSpeed: 6
+  levelSequence:
+  - level01
+  - level02
+  - level03
+  - SampleScene
+  countdownTime: 3
   maxLives: 3
   lives: 3
   autoCalculateBottomLimit: 1
@@ -729,7 +735,6 @@ MonoBehaviour:
   livesText: {fileID: 0}
   spawnPosition: {x: 0, y: -2.5}
   respawnDelay: 2
-  score: 0
   scoreText: {fileID: 0}
   guiFontSize: 36
   blockExplodeSound: {fileID: 8300000, guid: 4b83d6777ea2f154ebc8c15d9dd6023d, type: 3}
@@ -738,6 +743,11 @@ MonoBehaviour:
   lifeLostVolume: 0.4
   gameOverSound: {fileID: 8300000, guid: 425441f4ff9ca7b4d8a1602b6e937c46, type: 3}
   gameOverVolume: 0.5
+  isPenetrating: 0
+  isBigger: 0
+  isExtraBall: 0
+  biggerLevel: 0
+  powerUpDuration: 5
 --- !u!50 &547635760
 Rigidbody2D:
   serializedVersion: 5
@@ -920,10 +930,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1ee8b66b4b12eb4429ecce819cd0a654, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::blockSpawnerCentered
-  rows: 8
-  columns: 10
+  rows: 4
+  columns: 8
   spacing: {x: 0.55, y: 0.8}
   topMargin: 1
+  rowHealth: 02000000020000000100000001000000
   blockPrefab: {fileID: 4000341075061539332, guid: b6868216e171d0d4c8e36c28e64fd67c, type: 3}
   blockSprites:
   - {fileID: -2791081889304374837, guid: fcb6cc9a9b9deff4682e71288f79ca25, type: 3}

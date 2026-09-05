@@ -24,6 +24,10 @@ public class blockSpawnerPattern : MonoBehaviour
     public Vector2 spacing = new Vector2(1.1f, 0.55f); // Distância entre os blocos
     public float topMargin = 1.5f;                    // Distância do topo da tela
 
+    [Header("Configurações do Nível dos Blocos")]
+    [Tooltip("Se verdadeiro, o número no mapa ('1', '2', '6') define o nível de vida/destruição do bloco.")]
+    public bool useDigitAsBlockLevel = true;
+
     [Header("Referências")]
     public GameObject blockPrefab;                     // Prefab do bloco
     public Sprite[] blockSprites;                      // Lista de Sprites/Cores para os números ('1', '2', etc.)
@@ -87,16 +91,27 @@ public class blockSpawnerPattern : MonoBehaviour
                     newBlock.tag = "Block";
                 }
 
-                // Se o caractere for um dígito (ex: '1', '2', '3'), escolhe o sprite correspondente
-                if (char.IsDigit(ch) && blockSprites != null && blockSprites.Length > 0)
+                // Se o caractere for um dígito (ex: '1', '2', '6'), configura o nível de vida e sprite correspondente
+                if (char.IsDigit(ch))
                 {
-                    int spriteIndex = (ch - '1'); // '1' vira 0, '2' vira 1, etc.
-                    if (spriteIndex >= 0 && spriteIndex < blockSprites.Length)
+                    int digitValue = ch - '0'; // '1' vira 1, '6' vira 6
+
+                    blocks blockComp = newBlock.GetComponent<blocks>();
+                    if (useDigitAsBlockLevel && blockComp != null)
                     {
-                        SpriteRenderer sr = newBlock.GetComponent<SpriteRenderer>();
-                        if (sr != null)
+                        blockComp.SetHealth(digitValue);
+                    }
+
+                    if (blockSprites != null && blockSprites.Length > 0)
+                    {
+                        int spriteIndex = digitValue - 1; // '1' vira 0, '2' vira 1, etc.
+                        if (spriteIndex >= 0 && spriteIndex < blockSprites.Length)
                         {
-                            sr.sprite = blockSprites[spriteIndex];
+                            SpriteRenderer sr = newBlock.GetComponent<SpriteRenderer>();
+                            if (sr != null)
+                            {
+                                sr.sprite = blockSprites[spriteIndex];
+                            }
                         }
                     }
                 }

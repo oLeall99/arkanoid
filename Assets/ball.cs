@@ -66,7 +66,18 @@ public class BallControl : MonoBehaviour
 
     private AudioSource audioSource;
 
+    [Header("Efeitos de Power Up")]
+    public bool isPenetrating = false;
+    public bool isBigger = false;
+    public bool isExtraBall = false; // Indica se esta instância é uma bola extra duplicada
+    public int biggerLevel = 0; // Nível acumulativo do Bigger (cada nível adiciona +1 de dano e tamanho)
+    public float powerUpDuration = 5.0f; // Duração dos efeitos em segundos (5s)
 
+    public int BallDamage => 1 + biggerLevel; // Dano base = 1, cada Bigger aumenta o dano em +1
+
+    private Coroutine penetrationCoroutine;
+    private Coroutine biggerCoroutine;
+    private Vector3 originalScale = Vector3.one;
 
     void GoBall(){                      
         float rand = Random.Range(0, 2);
@@ -76,11 +87,18 @@ public class BallControl : MonoBehaviour
 
     void Start()
     {
+        originalScale = transform.localScale;
         rb2d = GetComponent<Rigidbody2D>(); // Inicializa o objeto bola
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
         {
             audioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        // Se for uma bola extra duplicada, não reinicia as vidas nem executa tutoriais/telas
+        if (isExtraBall)
+        {
+            return;
         }
 
         lives = maxLives;
@@ -103,6 +121,136 @@ public class BallControl : MonoBehaviour
         else
         {
             Invoke("GoBall", respawnDelay);
+        }
+    }
+
+    public void EnablePenetration()
+    {
+        if (penetrationCoroutine != null)
+        {
+            StopCoroutine(penetrationCoroutine);
+        }
+        penetrationCoroutine = StartCoroutine(PenetrationRoutine());
+    }
+
+    private IEnumerator PenetrationRoutine()
+    {
+        isPenetrating = true;
+        Collider2D col = GetComponent<Collider2D>();
+        if (col != null)
+        {
+            col.isTrigger = true;
+        }
+
+        yield return new WaitForSeconds(powerUpDuration);
+
+        DisablePenetration();
+    }
+
+    public void DisablePenetration()
+    {
+        if (penetrationCoroutine != null)
+        {
+            StopCoroutine(penetrationCoroutine);
+            penetrationCoroutine = null;
+        }
+        isPenetrating = false;
+        Collider2D col = GetComponent<Collider2D>();
+        if (col != null)
+        {
+            col.isTrigger = false;
+        }
+    }
+
+    public void EnableBiggerBall()
+    {
+        biggerLevel++;
+        if (originalScale == Vector3.zero)
+        {
+            originalScale = Vector3.one;
+        }
+
+        // Crescimento acumulativo (1x -> 2x -> 3x -> 4x...)
+        transform.localScale = originalScale * (1f + biggerLevel);
+
+        if (biggerCoroutine != null)
+        {
+            StopCoroutine(biggerCoroutine);
+        }
+        biggerCoroutine = StartCoroutine(BiggerBallRoutine());
+    }
+
+    private IEnumerator BiggerBallRoutine()
+    {
+        isBigger = true;
+
+        yield return new WaitForSeconds(powerUpDuration);
+
+        DisableBiggerBall();
+    }
+
+    public void DisableBiggerBall()
+    {
+        if (biggerCoroutine != null)
+        {
+            StopCoroutine(biggerCoroutine);
+            biggerCoroutine = null;
+        }
+        isBigger = false;
+        biggerLevel = 0;
+        if (originalScale != Vector3.zero)
+        {
+            transform.localScale = originalScale;
+        }
+    }
+
+    /// <summary>
+    /// Spawna uma bola extra que parte do spawnPosition para CIMA e dura 5 segundos.
+    /// </summary>
+    public void SpawnExtraBall()
+    {
+        GameObject extraGo = Instantiate(gameObject, spawnPosition, Quaternion.identity);
+        BallControl extraBall = extraGo.GetComponent<BallControl>();
+
+        if (extraBall != null)
+        {
+            extraBall.isExtraBall = true;
+            extraBall.isTutorialActive = false;
+            extraBall.isVictoryActive = false;
+            extraBall.isLevelCompleting = false;
+
+            // Inicia o movimento da bola extra para CIMA com variação suave no eixo X
+            Vector2 upDir = new Vector2(Random.Range(-0.4f, 0.4f), 1.0f).normalized;
+            Rigidbody2D extraRb = extraGo.GetComponent<Rigidbody2D>();
+            if (extraRb != null)
+            {
+                extraRb.linearVelocity = upDir * ballSpeed;
+            }
+
+            extraBall.StartCoroutine(extraBall.ExtraBallLifetime(5.0f));
+        }
+    }
+
+    private IEnumerator ExtraBallLifetime(float duration)
+    {
+        yield return new WaitForSeconds(duration);
+        // Após 5 segundos, se a bola extra ainda estiver na tela, ela desaparece sem tirar vida
+        if (gameObject != null && isExtraBall)
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    private void SyncLives(int newLives)
+    {
+        BallControl[] balls = Object.FindObjectsByType<BallControl>(FindObjectsInactive.Include);
+        foreach (BallControl b in balls)
+        {
+            if (b != null)
+            {
+                b.lives = newLives;
+                b.UpdateScoreUI();
+            }
         }
     }
 
@@ -131,6 +279,79 @@ public class BallControl : MonoBehaviour
         }
     }
 
+    void OnTriggerEnter2D(Collider2D other)
+    {
+        if (!isPenetrating) return;
+
+        // Se tocar na raquete do jogador enquanto penetrando -> Rebate mantendo a penetração ativa nos 5s
+        if (other.CompareTag("Player") || other.GetComponent<paddle_player>() != null)
+        {
+            consecutiveBlockHits = 0;
+
+            float hitFactor = (transform.position.x - other.transform.position.x) / other.bounds.size.x;
+            Vector2 dir = new Vector2(hitFactor * 1.2f, 1f).normalized;
+            rb2d.linearVelocity = dir * ballSpeed;
+        }
+        // Se tocar em um bloco enquanto penetrando -> Atravessa causando dano a todos os blocos no caminho
+        else if (other.CompareTag("Block") || other.GetComponent<blocks>() != null)
+        {
+            consecutiveBlockHits++;
+
+            int comboMultiplier = (consecutiveBlockHits > 1) ? 2 : 1;
+            blocks blockComponent = other.GetComponent<blocks>();
+            int basePoints = (blockComponent != null) ? blockComponent.points : 1;
+            int totalPoints = basePoints * comboMultiplier;
+
+            AddScore(totalPoints);
+            PlaySound(blockExplodeSound, blockExplodeVolume);
+
+            bool isDestroyed = true;
+            if (blockComponent != null)
+            {
+                isDestroyed = blockComponent.TakeHit(BallDamage);
+            }
+            else
+            {
+                other.gameObject.SetActive(false);
+            }
+
+            if (isDestroyed)
+            {
+                CheckLevelCompleted();
+            }
+        }
+        // Se tocar nas Paredes ou Limites enquanto penetrando -> Rebate mantendo a penetração ativa
+        else if (!other.CompareTag("Power"))
+        {
+            Vector2 ballPos = transform.position;
+            Vector2 closestPoint = other.ClosestPoint(ballPos);
+            Vector2 normal = (ballPos - closestPoint).normalized;
+
+            if (normal == Vector2.zero)
+            {
+                Vector2 currentDir = rb2d.linearVelocity.normalized;
+                if (Mathf.Abs(currentDir.x) > Mathf.Abs(currentDir.y))
+                {
+                    normal = new Vector2(-Mathf.Sign(currentDir.x), 0);
+                }
+                else
+                {
+                    normal = new Vector2(0, -Mathf.Sign(currentDir.y));
+                }
+            }
+
+            Vector2 inVelocity = rb2d.linearVelocity;
+            Vector2 reflectedVelocity = Vector2.Reflect(inVelocity, normal);
+
+            if (reflectedVelocity == Vector2.zero)
+            {
+                reflectedVelocity = -inVelocity;
+            }
+
+            rb2d.linearVelocity = reflectedVelocity.normalized * ballSpeed;
+        }
+    }
+
     void OnCollisionEnter2D (Collision2D coll) {
         // Colisão com a raquete do jogador (calcula a nova direção com velocidade constante ballSpeed)
         if(coll.collider.CompareTag("Player")){
@@ -155,15 +376,19 @@ public class BallControl : MonoBehaviour
             // Toca som de destruição do bloco (volume baixo)
             PlaySound(blockExplodeSound, blockExplodeVolume);
 
-            // Destrói / Desativa o bloco
+            bool isDestroyed = true;
+
+            // Processa o dano / destruição do bloco com o dano atual da bola
             if (blockComponent != null) {
-                blockComponent.DestroyBlock();
+                isDestroyed = blockComponent.TakeHit(BallDamage);
             } else {
                 coll.gameObject.SetActive(false);
             }
 
-            // Verifica se todos os blocos foram destruídos para avançar de fase
-            CheckLevelCompleted();
+            // Verifica se todos os blocos foram destruídos para avançar de fase (somente quando um bloco é destruído)
+            if (isDestroyed) {
+                CheckLevelCompleted();
+            }
         }
     }
 
@@ -354,16 +579,18 @@ public class BallControl : MonoBehaviour
         consecutiveBlockHits = 0;
         rb2d.linearVelocity = Vector2.zero;
         transform.position = spawnPosition;
+        DisablePenetration();
+        DisableBiggerBall();
     }
 
 
     // Perde uma vida ao cair da tela
     void LoseLife()
     {
-        lives--;
-        UpdateScoreUI();
+        int newLives = lives - 1;
+        SyncLives(newLives);
 
-        if (lives <= 0)
+        if (newLives <= 0)
         {
             // Toca som de Game Over ao perder todas as vidas
             PlaySound(gameOverSound, gameOverVolume);
@@ -376,9 +603,17 @@ public class BallControl : MonoBehaviour
             // Toca som ao passar da parte inferior (perder 1 vida)
             PlaySound(lifeLostSound, lifeLostVolume);
 
-            // Reinicia apenas a bola
-            ResetBall();
-            Invoke("GoBall", respawnDelay);
+            if (isExtraBall)
+            {
+                // Se for bola extra, ela é destruída sem interromper a bola principal
+                Destroy(gameObject);
+            }
+            else
+            {
+                // Reinicia apenas a bola principal
+                ResetBall();
+                Invoke("GoBall", respawnDelay);
+            }
         }
     }
 
@@ -435,7 +670,36 @@ public class BallControl : MonoBehaviour
         float limitY = bottomLimitY;
         if (autoCalculateBottomLimit && Camera.main != null && Camera.main.orthographic)
         {
-            limitY = -Camera.main.orthographicSize - 1.5f;
+            float orthoHeight = Camera.main.orthographicSize;
+            float orthoWidth = orthoHeight * Camera.main.aspect;
+
+            limitY = -orthoHeight - 1.5f;
+
+            // Se estiver em modo penetração, garante o rebate nas paredes de topo e laterais se a bola chegar nas bordas da tela
+            if (isPenetrating)
+            {
+                Vector2 vel = rb2d.linearVelocity;
+                Vector3 pos = transform.position;
+
+                // Parede Direita
+                if (pos.x > orthoWidth - 0.5f && vel.x > 0)
+                {
+                    vel.x = -Mathf.Abs(vel.x);
+                }
+                // Parede Esquerda
+                else if (pos.x < -orthoWidth + 0.5f && vel.x < 0)
+                {
+                    vel.x = Mathf.Abs(vel.x);
+                }
+
+                // Parede do Topo
+                if (pos.y > orthoHeight - 0.5f && vel.y > 0)
+                {
+                    vel.y = -Mathf.Abs(vel.y);
+                }
+
+                rb2d.linearVelocity = vel.normalized * ballSpeed;
+            }
         }
 
         // Se a bola passou do limite inferior da tela
