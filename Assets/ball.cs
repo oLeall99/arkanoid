@@ -66,23 +66,63 @@ public class BallControl : MonoBehaviour
 
     private AudioSource audioSource;
 
-    [Header("Efeitos de Power Up")]
+    [Header("Efeitos de Power Up e Boost")]
     public bool isPenetrating = false;
     public bool isBigger = false;
-    public bool isExtraBall = false; // Indica se esta instância é uma bola extra duplicada
     public int biggerLevel = 0; // Nível acumulativo do Bigger (cada nível adiciona +1 de dano e tamanho)
     public float powerUpDuration = 5.0f; // Duração dos efeitos em segundos (5s)
+    public float currentSpeedMultiplier = 1.0f; // Multiplicador atual de velocidade (Space Boost)
+    public float speedPaddleBonus = 0.0f; // Bônus de velocidade acumulativo (+0.1 por nível)
 
     public int BallDamage => 1 + biggerLevel; // Dano base = 1, cada Bigger aumenta o dano em +1
+    public float EffectiveBallSpeed => (ballSpeed + speedPaddleBonus) * currentSpeedMultiplier;
 
     private Coroutine penetrationCoroutine;
     private Coroutine biggerCoroutine;
+    private Coroutine speedBoostCoroutine;
     private Vector3 originalScale = Vector3.one;
 
+    public void EnableSpeedPaddleBonus(int level)
+    {
+        speedPaddleBonus = level * 0.1f;
+    }
+
+    public void DisableSpeedPaddleBonus()
+    {
+        speedPaddleBonus = 0.0f;
+    }
+
+    public void ApplySpeedBoost(float multiplier = 1.5f, float duration = 2.0f)
+    {
+        if (speedBoostCoroutine != null)
+        {
+            StopCoroutine(speedBoostCoroutine);
+        }
+        speedBoostCoroutine = StartCoroutine(SpeedBoostRoutine(multiplier, duration));
+    }
+
+    private IEnumerator SpeedBoostRoutine(float multiplier, float duration)
+    {
+        currentSpeedMultiplier = multiplier;
+        if (rb2d != null && rb2d.linearVelocity != Vector2.zero)
+        {
+            rb2d.linearVelocity = rb2d.linearVelocity.normalized * EffectiveBallSpeed;
+        }
+
+        yield return new WaitForSeconds(duration);
+
+        currentSpeedMultiplier = 1.0f;
+        if (rb2d != null && rb2d.linearVelocity != Vector2.zero)
+        {
+            rb2d.linearVelocity = rb2d.linearVelocity.normalized * EffectiveBallSpeed;
+        }
+        speedBoostCoroutine = null;
+    }
+
     void GoBall(){                      
-        float rand = Random.Range(0, 2);
-        Vector2 dir = new Vector2(rand < 1 ? 0.7f : -0.7f, -1.0f).normalized;
-        rb2d.linearVelocity = dir * ballSpeed;
+        float randX = Random.Range(-0.3f, 0.3f);
+        Vector2 dir = new Vector2(randX, -1.0f).normalized;
+        rb2d.linearVelocity = dir * EffectiveBallSpeed;
     }
 
     void Start()
@@ -93,12 +133,6 @@ public class BallControl : MonoBehaviour
         if (audioSource == null)
         {
             audioSource = gameObject.AddComponent<AudioSource>();
-        }
-
-        // Se for uma bola extra duplicada, não reinicia as vidas nem executa tutoriais/telas
-        if (isExtraBall)
-        {
-            return;
         }
 
         lives = maxLives;
@@ -204,56 +238,6 @@ public class BallControl : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Spawna uma bola extra que parte do spawnPosition para CIMA e dura 5 segundos.
-    /// </summary>
-    public void SpawnExtraBall()
-    {
-        GameObject extraGo = Instantiate(gameObject, spawnPosition, Quaternion.identity);
-        BallControl extraBall = extraGo.GetComponent<BallControl>();
-
-        if (extraBall != null)
-        {
-            extraBall.isExtraBall = true;
-            extraBall.isTutorialActive = false;
-            extraBall.isVictoryActive = false;
-            extraBall.isLevelCompleting = false;
-
-            // Inicia o movimento da bola extra para CIMA com variação suave no eixo X
-            Vector2 upDir = new Vector2(Random.Range(-0.4f, 0.4f), 1.0f).normalized;
-            Rigidbody2D extraRb = extraGo.GetComponent<Rigidbody2D>();
-            if (extraRb != null)
-            {
-                extraRb.linearVelocity = upDir * ballSpeed;
-            }
-
-            extraBall.StartCoroutine(extraBall.ExtraBallLifetime(5.0f));
-        }
-    }
-
-    private IEnumerator ExtraBallLifetime(float duration)
-    {
-        yield return new WaitForSeconds(duration);
-        // Após 5 segundos, se a bola extra ainda estiver na tela, ela desaparece sem tirar vida
-        if (gameObject != null && isExtraBall)
-        {
-            Destroy(gameObject);
-        }
-    }
-
-    private void SyncLives(int newLives)
-    {
-        BallControl[] balls = Object.FindObjectsByType<BallControl>(FindObjectsInactive.Include);
-        foreach (BallControl b in balls)
-        {
-            if (b != null)
-            {
-                b.lives = newLives;
-                b.UpdateScoreUI();
-            }
-        }
-    }
-
     void PlaySound(AudioClip clip, float volume)
     {
         if (clip != null && audioSource != null)
@@ -288,9 +272,15 @@ public class BallControl : MonoBehaviour
         {
             consecutiveBlockHits = 0;
 
+            paddle_player paddle = other.GetComponent<paddle_player>();
+            if (paddle != null && paddle.isBoosting)
+            {
+                ApplySpeedBoost(paddle.speedBoostMultiplier, paddle.speedBoostDuration);
+            }
+
             float hitFactor = (transform.position.x - other.transform.position.x) / other.bounds.size.x;
             Vector2 dir = new Vector2(hitFactor * 1.2f, 1f).normalized;
-            rb2d.linearVelocity = dir * ballSpeed;
+            rb2d.linearVelocity = dir * EffectiveBallSpeed;
         }
         // Se tocar em um bloco enquanto penetrando -> Atravessa causando dano a todos os blocos no caminho
         else if (other.CompareTag("Block") || other.GetComponent<blocks>() != null)
@@ -348,7 +338,7 @@ public class BallControl : MonoBehaviour
                 reflectedVelocity = -inVelocity;
             }
 
-            rb2d.linearVelocity = reflectedVelocity.normalized * ballSpeed;
+            rb2d.linearVelocity = reflectedVelocity.normalized * EffectiveBallSpeed;
         }
     }
 
@@ -356,9 +346,16 @@ public class BallControl : MonoBehaviour
         // Colisão com a raquete do jogador (calcula a nova direção com velocidade constante ballSpeed)
         if(coll.collider.CompareTag("Player")){
             consecutiveBlockHits = 0; // Reseta o combo ao tocar na raquete
+
+            paddle_player paddle = coll.collider.GetComponent<paddle_player>();
+            if (paddle != null && paddle.isBoosting)
+            {
+                ApplySpeedBoost(paddle.speedBoostMultiplier, paddle.speedBoostDuration);
+            }
+
             float hitFactor = (transform.position.x - coll.transform.position.x) / coll.collider.bounds.size.x;
             Vector2 dir = new Vector2(hitFactor * 1.2f, 1f).normalized;
-            rb2d.linearVelocity = dir * ballSpeed;
+            rb2d.linearVelocity = dir * EffectiveBallSpeed;
         }
         // Colisão com os blocos ("Block")
         else if (coll.gameObject.CompareTag("Block")) {
@@ -574,28 +571,52 @@ public class BallControl : MonoBehaviour
         }
     }
 
-    // Reinicializa a posição e velocidade da bola
+    /// <summary>
+    /// Cancela e reseta todos os efeitos de PowerUps ativos e destrói os PowerUps que estiverem caindo na cena.
+    /// </summary>
+    public void ResetAllPowerUps()
+    {
+        DisablePenetration();
+        DisableBiggerBall();
+        DisableSpeedPaddleBonus();
+
+        paddle_player paddle = Object.FindAnyObjectByType<paddle_player>();
+        if (paddle != null)
+        {
+            paddle.DisableSpeedPaddle();
+        }
+
+        powerUP[] fallingPowerUps = Object.FindObjectsByType<powerUP>(FindObjectsInactive.Include);
+        foreach (powerUP p in fallingPowerUps)
+        {
+            if (p != null)
+            {
+                Destroy(p.gameObject);
+            }
+        }
+    }
+
+    // Reinicializa a posição e velocidade da bola e reseta os PowerUps
     void ResetBall(){
         consecutiveBlockHits = 0;
         rb2d.linearVelocity = Vector2.zero;
         transform.position = spawnPosition;
-        DisablePenetration();
-        DisableBiggerBall();
+        ResetAllPowerUps();
     }
 
 
     // Perde uma vida ao cair da tela
     void LoseLife()
     {
-        int newLives = lives - 1;
-        SyncLives(newLives);
+        lives--;
+        UpdateScoreUI();
 
-        if (newLives <= 0)
+        if (lives <= 0)
         {
             // Toca som de Game Over ao perder todas as vidas
             PlaySound(gameOverSound, gameOverVolume);
 
-            // Perdeu todas as vidas -> Reinicia o jogo completo e restaura todos os blocos
+            // Perdeu todas as vidas -> Reinicia o jogo completo e restaura todos os blocos e powerups
             RestartGame();
         }
         else
@@ -603,17 +624,9 @@ public class BallControl : MonoBehaviour
             // Toca som ao passar da parte inferior (perder 1 vida)
             PlaySound(lifeLostSound, lifeLostVolume);
 
-            if (isExtraBall)
-            {
-                // Se for bola extra, ela é destruída sem interromper a bola principal
-                Destroy(gameObject);
-            }
-            else
-            {
-                // Reinicia apenas a bola principal
-                ResetBall();
-                Invoke("GoBall", respawnDelay);
-            }
+            // Reinicia a bola e limpa os powerups
+            ResetBall();
+            Invoke("GoBall", respawnDelay);
         }
     }
 
@@ -623,6 +636,7 @@ public class BallControl : MonoBehaviour
         lives = maxLives;
         ResetAllBlocks();
         UpdateScoreUI();
+        ResetAllPowerUps();
         ResetBall();
         Invoke("GoBall", respawnDelay);
     }
@@ -698,7 +712,7 @@ public class BallControl : MonoBehaviour
                     vel.y = -Mathf.Abs(vel.y);
                 }
 
-                rb2d.linearVelocity = vel.normalized * ballSpeed;
+                rb2d.linearVelocity = vel.normalized * EffectiveBallSpeed;
             }
         }
 
@@ -729,8 +743,8 @@ public class BallControl : MonoBehaviour
                 dir = dir.normalized;
             }
 
-            // Mantém a velocidade 100% constante no valor de ballSpeed
-            rb2d.linearVelocity = dir * ballSpeed;
+            // Mantém a velocidade constante considerando o multiplicador de boost e o bônus de velocidade
+            rb2d.linearVelocity = dir * EffectiveBallSpeed;
         }
     }
 }

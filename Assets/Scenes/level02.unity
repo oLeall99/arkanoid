@@ -185,7 +185,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 07f58dea182cc134bb59e2e2d58dc39c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
-  ballSpeed: 4
+  ballSpeed: 5
   levelSequence:
   - level01
   - level02
@@ -207,6 +207,12 @@ MonoBehaviour:
   lifeLostVolume: 0.4
   gameOverSound: {fileID: 8300000, guid: 425441f4ff9ca7b4d8a1602b6e937c46, type: 3}
   gameOverVolume: 0.5
+  isPenetrating: 0
+  isBigger: 0
+  isExtraBall: 0
+  biggerLevel: 0
+  powerUpDuration: 8
+  currentSpeedMultiplier: 1
 --- !u!50 &497283007
 Rigidbody2D:
   serializedVersion: 5
@@ -717,9 +723,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: '::'
   moveLeft: 15
   moveRight: 18
+  pushKey: 1
   speed: 5
+  pushDistance: 0.35
+  pushDuration: 0.15
+  speedBoostMultiplier: 1.5
+  speedBoostDuration: 2
   autoCalculateBounds: 1
   boundX: 2
+  isBoosting: 0
 --- !u!50 &1672794714
 Rigidbody2D:
   serializedVersion: 5

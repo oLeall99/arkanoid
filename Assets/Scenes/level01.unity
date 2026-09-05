@@ -538,9 +538,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: '::'
   moveLeft: 15
   moveRight: 18
+  pushKey: 1
   speed: 5
+  pushDistance: 0.35
+  pushDuration: 0.15
+  speedBoostMultiplier: 1.5
+  speedBoostDuration: 2
   autoCalculateBounds: 1
   boundX: 2
+  isBoosting: 0
 --- !u!50 &518200123
 Rigidbody2D:
   serializedVersion: 5
@@ -721,7 +727,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 07f58dea182cc134bb59e2e2d58dc39c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
-  ballSpeed: 6
+  ballSpeed: 5
   levelSequence:
   - level01
   - level02
@@ -747,7 +753,8 @@ MonoBehaviour:
   isBigger: 0
   isExtraBall: 0
   biggerLevel: 0
-  powerUpDuration: 5
+  powerUpDuration: 8
+  currentSpeedMultiplier: 1
 --- !u!50 &547635760
 Rigidbody2D:
   serializedVersion: 5
@@ -880,7 +887,7 @@ Transform:
   m_GameObject: {fileID: 547635758}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -1, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -930,11 +937,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1ee8b66b4b12eb4429ecce819cd0a654, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::blockSpawnerCentered
-  rows: 4
-  columns: 8
+  rows: 5
+  columns: 9
   spacing: {x: 0.55, y: 0.8}
   topMargin: 1
-  rowHealth: 02000000020000000100000001000000
+  rowHealth: 0300000002000000020000000100000001000000
   blockPrefab: {fileID: 4000341075061539332, guid: b6868216e171d0d4c8e36c28e64fd67c, type: 3}
   blockSprites:
   - {fileID: -2791081889304374837, guid: fcb6cc9a9b9deff4682e71288f79ca25, type: 3}

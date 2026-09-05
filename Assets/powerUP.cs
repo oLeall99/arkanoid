@@ -2,7 +2,7 @@ using UnityEngine;
 
 public enum PowerUpType
 {
-    Duplicator,
+    SpeedPaddle,
     Penetration,
     Bigger
 }
@@ -15,7 +15,7 @@ public class powerUP : MonoBehaviour
     private bool isTypeSet = false;
 
     [Header("Sprites dos Power Ups (3 Sprites Diferentes)")]
-    public Sprite duplicatorSprite;
+    public Sprite speedPaddleSprite;
     public Sprite penetrationSprite;
     public Sprite biggerSprite;
 
@@ -97,8 +97,8 @@ public class powerUP : MonoBehaviour
 
         switch (type)
         {
-            case PowerUpType.Duplicator:
-                if (duplicatorSprite != null) spriteRenderer.sprite = duplicatorSprite;
+            case PowerUpType.SpeedPaddle:
+                if (speedPaddleSprite != null) spriteRenderer.sprite = speedPaddleSprite;
                 spriteRenderer.color = Color.green;
                 transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
                 break;
@@ -144,22 +144,30 @@ public class powerUP : MonoBehaviour
 
     private void ActivatePowerUp()
     {
+        paddle_player paddle = Object.FindAnyObjectByType<paddle_player>();
         BallControl ball = Object.FindAnyObjectByType<BallControl>();
-
-        if (ball == null) return;
 
         switch (type)
         {
-            case PowerUpType.Duplicator:
-                ball.SpawnExtraBall();
+            case PowerUpType.SpeedPaddle:
+                if (paddle != null)
+                {
+                    paddle.EnableSpeedPaddle();
+                }
                 break;
 
             case PowerUpType.Penetration:
-                ball.EnablePenetration();
+                if (ball != null)
+                {
+                    ball.EnablePenetration();
+                }
                 break;
 
             case PowerUpType.Bigger:
-                ball.EnableBiggerBall();
+                if (ball != null)
+                {
+                    ball.EnableBiggerBall();
+                }
                 break;
         }
     }
